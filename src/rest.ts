@@ -432,10 +432,14 @@ export async function handleRest(
           return true;
         }
         try {
+          // GitHub takes the target branch from the `ref` query parameter on a PUT
+          // (the body's `branch` field is the older form); the suite commits to a
+          // branch with `?ref=<branch>`, so the query is the fallback when the
+          // body names no branch.
           const out = store.putContent(repo, contentPath, {
             message,
             contentB64,
-            branch: strField(body.branch),
+            branch: strField(body.branch) ?? ref,
             sha: strField(body.sha),
           });
           const name = contentPath.split('/').pop() ?? contentPath;

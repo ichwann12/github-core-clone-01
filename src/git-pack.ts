@@ -144,7 +144,7 @@ export function makeDelta(base: Buffer, target: Buffer): Buffer | null {
     ops.push(Buffer.concat([Buffer.from([chunk]), target.subarray(at, at + chunk)]));
     at += chunk;
   }
-  if (suffix > 0) ops.push(deltaCopyOp(target.length - suffix, suffix));
+  if (suffix > 0) ops.push(deltaCopyOp(base.length - suffix, suffix));
   const delta = Buffer.concat([encodeDeltaVarint(base.length), encodeDeltaVarint(target.length), ...ops]);
   return delta.length < target.length ? delta : null;
 }
