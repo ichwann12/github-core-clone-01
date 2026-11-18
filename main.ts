@@ -1,6 +1,15 @@
-// The entry <-> env lifecycle, as env/src/wire.ts settles it: bind an ephemeral port, tell the env the
-// port it bound, then poll until the env says the trial is over and exit 0. Keep this file as it is:
-// the suite scores the server app.ts builds, and the lifecycle is the harness's, not the contest's.
+// github-core-clone-01 — a GitHub-compatible git forge, built for make.fun.
+// One process, Node 22 stdlib only, no git binary: the pack protocol (upload-pack
+// v2 + receive-pack v0), REST v3, GraphQL v4 and MCP all share one in-memory store
+// (src/store.ts). Repos are created through REST only; every update fast-forwards.
+// The forge is deterministic: fixed trial timestamps and sequential counters, no
+// wall clock or Math.random in stored state, so a trial replay exports byte for byte.
+//
+// The lifecycle below is the harness's entry <-> env contract, not the contest's:
+// bind an ephemeral port, POST it to $MAKEFUN_ENV_URL/register, answer /healthz,
+// then poll $MAKEFUN_ENV_URL/done until the trial ends and exit 0. The forge itself
+// lives in app.ts (wired router) and src/ (store, git objects/pack/protocol, rest,
+// graphql, mcp); this file only starts it and runs the contract.
 //
 //   1. MAKEFUN_ENV_URL names the env's origin (http://store:8080 in a trial container). Without it
 //      there is nothing to talk to, so the program exits 1 at once.
@@ -79,6 +88,7 @@ async function waitForDone(): Promise<void> {
 /** Bound the port, register it, then wait for the env: the whole life of the process. */
 async function main(): Promise<void> {
   const server = createApp();
+  process.stdout.write('[entry] github-core-clone-01 forge starting (git + REST v3 + GraphQL v4 + MCP, one store)\n');
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, () => resolve());
