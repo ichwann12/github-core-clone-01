@@ -157,7 +157,9 @@ export class Store {
       const raw = repo.objects.get(current);
       if (raw === undefined) break;
       const parsed = parseCommit(parseObject(raw).payload);
-      out.push({ sha: current, message: parsed.message });
+      // The git object stores the message with a trailing newline; GitHub's API
+      // presentation strips it, and the suite compares the message exactly.
+      out.push({ sha: current, message: parsed.message.replace(/\n$/, '') });
       current = parsed.parents[0];
     }
     return out;
