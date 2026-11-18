@@ -260,6 +260,14 @@ interface PackEntryPlan {
  * emitted before their deltas). Deterministic: full objects sorted by sha,
  * then deltas sorted by sha.
  */
+/** True when the two payloads share their first `n` bytes (a cheap delta-candidate filter). */
+function sharesHead(a: Buffer, b: Buffer, n: number): boolean {
+  const m = Math.min(n, a.length, b.length);
+  if (m === 0) return false;
+  for (let i = 0; i < m; i += 1) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 export function buildPackFromShas(objects: Map<string, Buffer>, shas: Set<string>): Buffer {
   const entries: PackEntryPlan[] = [];
   for (const oid of shas) {
@@ -272,14 +280,21 @@ export function buildPackFromShas(objects: Map<string, Buffer>, shas: Set<string
   entries.sort((a, b) => (a.oid < b.oid ? -1 : a.oid > b.oid ? 1 : 0));
 
   // Choose deltas: for each blob, the best full blob already chosen as a base.
+  // Two guards keep this cheap on a 200-file repo (the clone workload builds the
+  // same pack 50 times): a pair is only tried when the blobs share a 32-byte head
+  // (a delta between unrelated blobs is never smaller, and the O(payload) builder
+  // is the expensive part), and the search stops at the first base that halves
+  // the blob — trying every base is O(n^2) and dominates the pack build.
   const fullBlobs: PackEntryPlan[] = [];
   for (const entry of entries) {
     if (entry.type !== 'blob') continue;
     let best: { base: PackEntryPlan; delta: Buffer } | null = null;
     for (const base of fullBlobs) {
       if (base.payload.equals(entry.payload)) continue;
+      if (!sharesHead(base.payload, entry.payload, 32)) continue;
       const delta = makeDelta(base.payload, entry.payload);
       if (delta && (!best || delta.length < best.delta.length)) best = { base, delta };
+      if (best !== null && best.delta.length * 2 <= entry.payload.length) break;
     }
     if (best) {
       entry.deltaBaseOid = best.base.oid;
